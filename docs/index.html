@@ -1,0 +1,2038 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIMPLE COMPTA - Comptabilité Mobile</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #5d2568;
+            color: #fff;
+            padding: 15px 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            position: relative;
+        }
+        .header .initials {
+            font-size: 14px;
+            font-weight: normal;
+            margin-top: 5px;
+        }
+        .tabs {
+            display: flex;
+            justify-content: space-around;
+            background-color: #7a3a83;
+            color: #fff;
+            padding: 10px 0;
+        }
+        .tabs button {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 14px;
+            padding: 10px 5px;
+            cursor: pointer;
+            outline: none;
+            flex-grow: 1;
+            white-space: nowrap;
+        }
+        .tabs button.active {
+            font-weight: bold;
+            border-bottom: 2px solid #fff;
+        }
+        .corner-tab {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+            background: none;
+            border: 1px solid #fff;
+            color: #fff;
+            font-size: 12px;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .content {
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .btn {
+            background-color: #5d2568;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+        }
+        .table-container {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .balance-table, .journal-table {
+            margin-top: 20px;
+        }
+        .balance-table h3, .journal-table h3 {
+            text-align: center;
+        }
+        .balance-table td:nth-child(2), .balance-table td:nth-child(3) {
+            text-align: right;
+        }
+        #grand-livre-table td, #journal-table td {
+            white-space: nowrap;
+        }
+        #auxiliaires-list-table {
+            width: 100%;
+        }
+        #auxiliaires-list-table td:last-child {
+            text-align: center;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        .action-buttons button {
+            padding: 5px;
+            font-size: 10px;
+            width: auto;
+        }
+        #journaux-section th, #journaux-section td {
+            text-align: left;
+        }
+        .sub-tabs {
+            display: flex;
+            justify-content: space-around;
+            background-color: #9c67a5;
+            color: #fff;
+            padding: 8px 0;
+            margin-bottom: 15px;
+        }
+        .sub-tabs button {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 14px;
+            padding: 8px;
+            cursor: pointer;
+            outline: none;
+        }
+        .sub-tabs button.active {
+            font-weight: bold;
+            border-bottom: 2px solid #fff;
+        }
+        /* Styles pour la boîte d'alerte personnalisée */
+        .custom-alert-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .custom-alert-box {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 300px;
+        }
+        .custom-alert-box p {
+            margin: 0 0 15px;
+            font-size: 16px;
+        }
+        .custom-alert-box button {
+            background-color: #5d2568;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <button id="manuel-tab" class="corner-tab">Manuel</button>
+    SIMPLE COMPTA
+    <div class="initials">mboka_mj</div>
+</div>
+
+<div class="tabs">
+    <button id="societes-tab" class="active">Accueil</button>
+    <button id="pieces-tab">Pièces J.</button>
+    <button id="etats-tab">Etats-D.</button>
+    <button id="auxiliaires-tab">Auxiliaires</button>
+    <button id="parametres-tab">Paramètres</button>
+</div>
+
+<div class="container">
+    <div id="societes-section" class="section active">
+        <h2>Gestion des Sociétés</h2>
+        <div class="form-group">
+            <label for="societe-list">Sélectionner une Société :</label>
+            <select id="societe-list"></select>
+        </div>
+        <button id="add-societe-btn" class="btn">Créer une nouvelle société</button>
+        <button id="delete-societe-btn" class="btn" style="background-color: #f44336; margin-top: 10px; display: none;">Supprimer la société</button>
+        <div id="create-societe-form" style="display:none; margin-top:20px;">
+            <h3>Création de Société</h3>
+            <div class="form-group">
+                <label for="new-societe-denomination">Dénomination Sociale</label>
+                <input type="text" id="new-societe-denomination" required>
+            </div>
+            <div class="form-group">
+                <label for="new-societe-rccm">RCCM</label>
+                <input type="text" id="new-societe-rccm">
+            </div>
+            <div class="form-group">
+                <label for="new-societe-id-nat">Identification Nationale</label>
+                <input type="text" id="new-societe-id-nat">
+            </div>
+            <div class="form-group">
+                <label for="new-societe-adresse">Adresse Physique</label>
+                <input type="text" id="new-societe-adresse">
+            </div>
+            <div class="form-group">
+                <label for="new-societe-telephone">Téléphone</label>
+                <input type="text" id="new-societe-telephone">
+            </div>
+            <button id="save-new-societe-btn" class="btn">Enregistrer</button>
+            <button id="open-soldes-btn" class="btn" style="background-color: #4CAF50; margin-top: 10px;">Saisir les soldes d'ouverture</button>
+        </div>
+    </div>
+
+    <div id="pieces-section" class="section">
+        <h2>Saisie des Pièces J.</h2>
+        <div class="form-group">
+            <label for="journal-select">Journal</label>
+            <select id="journal-select"></select>
+        </div>
+        <div class="form-group">
+            <label for="date-input">Date</label>
+            <input type="date" id="date-input">
+        </div>
+        <div class="form-group">
+            <label for="piece-input">N° Pièce Just.</label>
+            <input type="text" id="piece-input">
+        </div>
+        <div class="form-group">
+            <label for="libelle-input">Libellé</label>
+            <input type="text" id="libelle-input">
+        </div>
+        <div class="form-group">
+            <label for="compte-input">Numéro de compte</label>
+            <input type="text" id="compte-input" list="comptes-list">
+            <datalist id="comptes-list"></datalist>
+        </div>
+        <div class="form-group">
+            <label for="intitule-compte-input">Intitulé de compte</label>
+            <input type="text" id="intitule-compte-input" readonly>
+        </div>
+        <div class="form-group">
+            <label for="compte-auxiliaire-input">N° de compte auxiliaire (optionnel)</label>
+            <input type="text" id="compte-auxiliaire-input" list="comptes-auxiliaires-list">
+            <datalist id="comptes-auxiliaires-list"></datalist>
+        </div>
+        <div class="form-group">
+            <label for="montant-input">Montant</label>
+            <input type="number" id="montant-input">
+        </div>
+        <div class="form-group">
+            <input type="radio" id="debit-radio" name="sens" value="debit"> Débit
+            <input type="radio" id="credit-radio" name="sens" value="credit"> Crédit
+        </div>
+        <button id="add-entry-btn" class="btn">Ajouter</button>
+        
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Compte</th>
+                        <th>Auxiliaire</th>
+                        <th>Débit</th>
+                        <th>Crédit</th>
+                    </tr>
+                </thead>
+                <tbody id="entries-table-body">
+                </tbody>
+            </table>
+        </div>
+        <button id="save-piece-btn" class="btn" style="margin-top:10px;">Enregistrer la pièce</button>
+    </div>
+
+    <div id="etats-section" class="section">
+        <h2>États Financiers</h2>
+        <div class="form-group">
+            <label for="etats-select">Choisir un état :</label>
+            <select id="etats-select">
+                <option value="grand-livre">Grand Livre</option>
+                <option value="journal">Journal</option>
+                <option value="balance">Balance</option>
+                <option value="bilan">Bilan</option>
+                <option value="compte-resultat">Compte de Résultat</option>
+                <option value="tresorerie">Tableau de Trésorerie</option>
+                <option value="annexes">Annexes</option>
+            </select>
+        </div>
+        
+        <button id="export-pdf-btn" class="btn" style="background-color: #f44336; margin-bottom: 20px; display: none;">Exporter en PDF</button>
+
+        <div id="grand-livre-content" class="table-container">
+            <h3>Grand Livre</h3>
+            <table id="grand-livre-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Compte</th>
+                        <th>Auxiliaire</th>
+                        <th>Libellé</th>
+                        <th>Débit</th>
+                        <th>Crédit</th>
+                        <th>N° Pièce</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="grand-livre-body">
+                </tbody>
+            </table>
+        </div>
+
+        <div id="journal-content" class="table-container" style="display: none;">
+            <h3>Journal</h3>
+            <table id="journal-table">
+                <thead>
+                    <tr>
+                        <th>Journal</th>
+                        <th>Date</th>
+                        <th>N° Pièce</th>
+                        <th>Libellé</th>
+                        <th>Compte</th>
+                        <th>Auxiliaire</th>
+                        <th>Débit</th>
+                        <th>Crédit</th>
+                    </tr>
+                </thead>
+                <tbody id="journal-body">
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="balance-content" class="table-container" style="display: none;">
+            <h3>Balance des Comptes</h3>
+            <table class="balance-table">
+                <thead>
+                    <tr>
+                        <th>Compte</th>
+                        <th>Débit Total</th>
+                        <th>Crédit Total</th>
+                        <th>Solde Débit</th>
+                        <th>Solde Crédit</th>
+                    </tr>
+                </thead>
+                <tbody id="balance-body">
+                </tbody>
+            </table>
+        </div>
+
+        <div id="bilan-content" class="table-container" style="display: none;">
+            <h3>Bilan</h3>
+            <p>En cours de développement...</p>
+        </div>
+
+        <div id="compte-resultat-content" class="table-container" style="display: none;">
+            <h3>Compte de Résultat</h3>
+            <p>En cours de développement...</p>
+        </div>
+
+        <div id="tresorerie-content" class="table-container" style="display: none;">
+            <h3>Tableau de Trésorerie</h3>
+            <p>En cours de développement...</p>
+        </div>
+
+        <div id="annexes-content" class="table-container" style="display: none;">
+            <h3>Annexes Comptables</h3>
+            <p>En cours de développement...</p>
+        </div>
+    </div>
+
+    <div id="auxiliaires-section" class="section">
+        <h2>Gestion des Comptes Auxiliaires</h2>
+        <div id="add-auxiliaire-form" style="margin-top:20px;">
+            <h3>Ajouter un Compte Auxiliaire</h3>
+            <div class="form-group">
+                <label for="aux-compte-general-select">Compte Général (401, 411, etc.)</label>
+                <select id="aux-compte-general-select"></select>
+            </div>
+            <div class="form-group">
+                <label for="new-auxiliaire-code">Code Auxiliaire</label>
+                <input type="text" id="new-auxiliaire-code" required>
+            </div>
+            <div class="form-group">
+                <label for="new-auxiliaire-intitule">Intitulé (Nom du fournisseur/client)</label>
+                <input type="text" id="new-auxiliaire-intitule" required>
+            </div>
+            <button id="save-new-auxiliaire-btn" class="btn">Enregistrer le compte auxiliaire</button>
+        </div>
+        <div class="table-container">
+            <h3>Liste des Comptes Auxiliaires</h3>
+            <table id="auxiliaires-list-table">
+                <thead>
+                    <tr>
+                        <th>Compte Général</th>
+                        <th>Code</th>
+                        <th>Intitulé</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="auxiliaires-list-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div id="parametres-section" class="section">
+        <h2>Paramètres du Dossier</h2>
+        <div class="sub-tabs">
+            <button id="journaux-sub-tab" class="active">Journaux</button>
+            <button id="tva-sub-tab">TVA</button>
+            <button id="devises-sub-tab">Devises</button>
+            <button id="paiements-sub-tab">Modes de paiement</button>
+        </div>
+
+        <div id="journaux-content" class="sub-section active">
+            <h3>Gestion des Journaux Comptables</h3>
+            <div id="add-journal-form" style="margin-top:20px;">
+                <div class="form-group">
+                    <label for="new-journal-code">Code du Journal (Ex: ACH, VEN, BQ1)</label>
+                    <input type="text" id="new-journal-code" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-journal-libelle">Libellé du Journal (Ex: Journal des Achats)</label>
+                    <input type="text" id="new-journal-libelle" required>
+                </div>
+                <button id="save-new-journal-btn" class="btn">Enregistrer le Journal</button>
+            </div>
+            <div class="table-container">
+                <h3>Liste des Journaux</h3>
+                <table id="journaux-list-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Libellé</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="journaux-list-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tva-content" class="sub-section" style="display: none;">
+            <h3>Gestion des Taux de TVA</h3>
+            <div id="add-tva-form" style="margin-top:20px;">
+                <div class="form-group">
+                    <label for="new-tva-taux">Taux (%)</label>
+                    <input type="number" step="0.01" id="new-tva-taux" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-tva-libelle">Libellé (Ex: Taux normal)</label>
+                    <input type="text" id="new-tva-libelle" required>
+                </div>
+                <button id="save-new-tva-btn" class="btn">Enregistrer le Taux</button>
+            </div>
+            <div class="table-container">
+                <h3>Liste des Taux de TVA</h3>
+                <table id="tva-list-table">
+                    <thead>
+                        <tr>
+                            <th>Taux (%)</th>
+                            <th>Libellé</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tva-list-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="devises-content" class="sub-section" style="display: none;">
+            <h3>Gestion des Devises</h3>
+            <div id="add-devise-form" style="margin-top:20px;">
+                <div class="form-group">
+                    <label for="new-devise-code">Code de la Devise (Ex: USD, EUR, CDF)</label>
+                    <input type="text" id="new-devise-code" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-devise-symbole">Symbole (Ex: $, €, FC)</label>
+                    <input type="text" id="new-devise-symbole" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-devise-libelle">Libellé (Ex: Dollar Américain)</label>
+                    <input type="text" id="new-devise-libelle" required>
+                </div>
+                <button id="save-new-devise-btn" class="btn">Enregistrer la Devise</button>
+            </div>
+            <div class="table-container">
+                <h3>Liste des Devises</h3>
+                <table id="devises-list-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Symbole</th>
+                            <th>Libellé</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="devises-list-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="paiements-content" class="sub-section" style="display: none;">
+            <h3>Gestion des Modes de Paiement</h3>
+            <div id="add-paiement-form" style="margin-top:20px;">
+                <div class="form-group">
+                    <label for="new-paiement-code">Code du Mode (Ex: CHQ, VIR, ESP)</label>
+                    <input type="text" id="new-paiement-code" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-paiement-libelle">Libellé (Ex: Chèque, Virement bancaire, Espèces)</label>
+                    <input type="text" id="new-paiement-libelle" required>
+                </div>
+                <button id="save-new-paiement-btn" class="btn">Enregistrer le Mode</button>
+            </div>
+            <div class="table-container">
+                <h3>Liste des Modes de Paiement</h3>
+                <table id="paiements-list-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Libellé</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="paiements-list-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="manuel-section" class="section">
+        <h2>Manuel d'utilisation</h2>
+        <div id="manuel-content">
+            <h3>Étape 1 : Le Paramétrage (Commencer par l'essentiel)</h3>
+            <p>Avant de saisir la moindre pièce, vous devez configurer votre dossier. C'est l'étape la plus importante, car elle garantit que vos enregistrements seront corrects. Rendez-vous dans l'onglet <strong>"Paramètres"</strong>.</p>
+            <h4>1.1. Gérer les Journaux</h4>
+            <p>Un journal est un classeur où vous rangez vos factures et vos transactions selon leur nature. Par exemple, un journal pour les achats (factures de fournisseurs), un autre pour les ventes (factures de clients), un pour les banques, etc.</p>
+            <ul>
+                <li>Cliquez sur l'onglet <strong>"Journaux"</strong>.</li>
+                <li>Saisissez un <strong>Code</strong> (par exemple, <strong>ACH</strong> pour Achats) et un <strong>Libellé</strong> (par exemple, <strong>Journal des Achats</strong>).</li>
+                <li>Cliquez sur <strong>"Enregistrer le Journal"</strong>.</li>
+                <li>Répétez cette étape pour chaque type de transaction que vous aurez.</li>
+            </ul>
+            <h4>1.2. Gérer les Comptes Auxiliaires</h4>
+            <p>Ce sont les sous-comptes de vos comptes généraux 401 (Fournisseurs) et 411 (Clients). Ils vous permettent de suivre l'argent que vous devez à chaque fournisseur ou que chaque client vous doit.</p>
+            <ul>
+                <li>Allez dans l'onglet <strong>"Auxiliaires"</strong>.</li>
+                <li>Sélectionnez le <strong>Compte Général</strong> (ex. : 401 pour un fournisseur).</li>
+                <li>Saisissez un <strong>Code Auxiliaire</strong> (ex. : <strong>FRN001</strong>) et son <strong>Intitulé</strong> (ex. : <strong>Mon Fournisseur SA</strong>).</li>
+                <li>Cliquez sur <strong>"Enregistrer le compte auxiliaire"</strong>.</li>
+            </ul>
+
+            <hr>
+
+            <h3>Étape 2 : L'Accueil (Créer votre société)</h3>
+            <p>Maintenant que votre application est prête, créez l'entreprise pour laquelle vous allez travailler.</p>
+            <ol>
+                <li>Rendez-vous sur l'onglet <strong>"Accueil"</strong>.</li>
+                <li>Cliquez sur <strong>"Créer une nouvelle société"</strong>.</li>
+                <li>Remplissez les informations de base (dénomination, RCCM, etc.). Ces informations figureront sur vos rapports.</li>
+                <li>Cliquez sur <strong>"Enregistrer"</strong>.</li>
+                <li>Une fois la société créée, elle apparaîtra dans la liste déroulante. Sélectionnez-la pour travailler dessus.</li>
+            </ol>
+            
+            <hr>
+
+            <h3>Étape 3 : Saisie des Pièces J. (Le quotidien)</h3>
+            <p>C'est ici que vous enregistrez toutes les transactions financières de votre entreprise.</p>
+            <ol>
+                <li>Rendez-vous sur l'onglet <strong>"Pièces J."</strong>.</li>
+                <li><strong>Informations de la pièce :</strong>
+                    <ul>
+                        <li><strong>Journal :</strong> Choisissez le journal créé à l'étape 1 qui correspond à votre transaction (ex. : <strong>ACH</strong> si c'est une facture d'achat).</li>
+                        <li><strong>Date :</strong> La date de la facture ou de la transaction.</li>
+                        <li><strong>N° Pièce Just. :</strong> Le numéro unique de votre document (ex. : la référence de la facture).</li>
+                        <li><strong>Libellé :</strong> Une brève description de la transaction (ex. : Achat de marchandises - Facture n°...).</li>
+                    </ul>
+                </li>
+                <li><strong>Détail des écritures comptables :</strong> Pour chaque ligne de votre document (par exemple, le montant HT, la TVA), vous devez faire une écriture.
+                    <ul>
+                        <li><strong>Numéro de compte :</strong> Entrez le numéro de compte qui correspond à l'écriture (ex. : 601 pour les achats, 445 pour la TVA). L'intitulé s'affichera automatiquement.</li>
+                        <li><strong>Compte auxiliaire :</strong> Si le compte est un 401 ou 411, entrez le code auxiliaire créé à l'étape 1.</li>
+                        <li><strong>Montant :</strong> Entrez le montant de l'écriture.</li>
+                        <li><strong>Débit/Crédit :</strong> Choisissez le sens de l'écriture.</li>
+                        <li>Cliquez sur <strong>"Ajouter"</strong>.</li>
+                        <li><strong>Répétez ces étapes pour toutes les lignes de la pièce</strong>. Une pièce est équilibrée lorsque le total du <strong>débit</strong> est égal au total du <strong>crédit</strong> (balance à zéro en bas de la page).</li>
+                    </ul>
+                </li>
+                <li>Cliquez sur <strong>"Enregistrer la pièce"</strong> une fois que vous avez fini.</li>
+            </ol>
+            
+            <hr>
+
+            <h3>Étape 4 : Les États-D. (Consultation)</h3>
+            <p>Une fois que vous avez enregistré des pièces, vous pouvez consulter vos rapports financiers.</p>
+            <ol>
+                <li>Rendez-vous dans l'onglet <strong>"Etats-D."</strong>.</li>
+                <li>Dans la liste déroulante, sélectionnez l'état que vous souhaitez voir :
+                    <ul>
+                        <li><strong>Journal :</strong> Pour voir toutes les transactions enregistrées, classées par journal.</li>
+                        <li><strong>Grand Livre :</strong> Pour voir le détail de toutes les transactions, classées par compte.</li>
+                        <li><strong>Balance :</strong> Pour voir le solde total de chaque compte.</li>
+                        <li><strong>Bilan/Compte de Résultat :</strong> Pour voir les rapports finaux.</li>
+                    </ul>
+                </li>
+                <li>Cliquez sur <strong>"Exporter en PDF"</strong> pour sauvegarder un rapport.</li>
+            </ol>
+        </div>
+    </div>
+
+    <div id="soldes-ouverture-section" class="section">
+        <h2>Saisie des soldes d'ouverture</h2>
+        <p>Le total des débits et des crédits doit être égal.</p>
+        <div class="form-group">
+            <label for="date-ouverture-input">Date du bilan d'ouverture</label>
+            <input type="date" id="date-ouverture-input">
+        </div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Compte</th>
+                        <th>Intitulé</th>
+                        <th>Débit</th>
+                        <th>Crédit</th>
+                    </tr>
+                </thead>
+                <tbody id="soldes-ouverture-table-body">
+                </tbody>
+            </table>
+        </div>
+        <button id="save-soldes-btn" class="btn">Enregistrer les soldes</button>
+        <button id="cancel-soldes-btn" class="btn" style="background-color: #ccc; margin-top: 10px;">Annuler</button>
+    </div>
+</div>
+<div id="custom-alert-container"></div>
+
+<script>
+    const SUPABASE_URL = 'https://acoburvufspgfmqtktec.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFjb2J1cnZ1ZnNwZ2ZtcXRrdGVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMTkyMTcsImV4cCI6MjA3MzY5NTIxN30.kXMT2J_bo8XPhvlxdWGcQuHYM-elnm-2tM4KSUfsQ7s';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let activeSocieteId = null;
+    let activeSocieteDenomination = null;
+    let grandLivreData = [];
+    let comptesMap = new Map();
+    let comptesAuxiliairesMap = new Map();
+    let journauxMap = new Map();
+    let tvaMap = new Map();
+    let devisesMap = new Map();
+    let paiementsMap = new Map();
+    const entries = [];
+    let editingPieceId = null; 
+
+    // Données des états financiers pour l'affichage
+    let bilanData = new Map();
+    let resultatData = new Map();
+    let resultatNet = 0;
+    let tftData = {};
+
+    // Fonction d'alerte personnalisée
+    function showAlert(message) {
+        const container = document.getElementById('custom-alert-container');
+        container.innerHTML = `
+            <div class="custom-alert-overlay">
+                <div class="custom-alert-box">
+                    <p>${message}</p>
+                    <button id="custom-alert-ok-btn">OK</button>
+                </div>
+            </div>
+        `;
+        document.getElementById('custom-alert-ok-btn').addEventListener('click', () => {
+            container.innerHTML = '';
+        });
+    }
+
+    // Fonctions d'affichage des états financiers
+    function displayGrandLivre() {
+        const grandLivreBody = document.getElementById('grand-livre-body');
+        grandLivreBody.innerHTML = '';
+        if (grandLivreData.length === 0) {
+            grandLivreBody.innerHTML = '<tr><td colspan="8">Aucune donnée trouvée.</td></tr>';
+            return;
+        }
+        grandLivreData.forEach(entry => {
+            const row = `<tr>
+                <td>${entry.date}</td>
+                <td>${entry.compte}</td>
+                <td>${entry.compte_auxiliaire || ''}</td>
+                <td>${entry.libelle}</td>
+                <td>${entry.debit > 0 ? entry.debit.toFixed(2) : ''}</td>
+                <td>${entry.credit > 0 ? entry.credit.toFixed(2) : ''}</td>
+                <td>${entry.piece}</td>
+                <td>
+                    <div class="action-buttons">
+                        <button onclick="editEntry('${entry.piece}')">Modifier</button>
+                        <button onclick="deleteEntry('${entry.piece}')" style="background-color: #f44336;">Supprimer</button>
+                    </div>
+                </td>
+            </tr>`;
+            grandLivreBody.innerHTML += row;
+        });
+    }
+    
+    function displayJournal() {
+        const journalBody = document.getElementById('journal-body');
+        journalBody.innerHTML = '';
+        if (grandLivreData.length === 0) {
+            journalBody.innerHTML = '<tr><td colspan="8">Aucune donnée trouvée.</td></tr>';
+            return;
+        }
+        const journalData = grandLivreData.reduce((acc, curr) => {
+            if (!acc[curr.piece]) acc[curr.piece] = { entries: [] };
+            acc[curr.piece].entries.push(curr);
+            return acc;
+        }, {});
+        for (const piece in journalData) {
+            journalData[piece].entries.forEach((entry, index) => {
+                const row = `<tr>
+                    <td>${index === 0 ? entry.journal : ''}</td>
+                    <td>${index === 0 ? entry.date : ''}</td>
+                    <td>${index === 0 ? entry.piece : ''}</td>
+                    <td>${entry.libelle}</td>
+                    <td>${entry.compte}</td>
+                    <td>${entry.compte_auxiliaire || ''}</td>
+                    <td>${entry.debit > 0 ? entry.debit.toFixed(2) : ''}</td>
+                    <td>${entry.credit > 0 ? entry.credit.toFixed(2) : ''}</td>
+                </tr>`;
+                journalBody.innerHTML += row;
+            });
+        }
+    }
+    
+    function displayBalance() {
+        const balanceBody = document.getElementById('balance-body');
+        balanceBody.innerHTML = '';
+        if (grandLivreData.length === 0) {
+            balanceBody.innerHTML = '<tr><td colspan="5">Aucune donnée trouvée.</td></tr>';
+            return;
+        }
+        const balanceData = grandLivreData.reduce((acc, curr) => {
+            if (!acc[curr.compte]) acc[curr.compte] = { debit: 0, credit: 0 };
+            acc[curr.compte].debit += curr.debit;
+            acc[curr.compte].credit += curr.credit;
+            return acc;
+        }, {});
+        for (const compte in balanceData) {
+            const totals = balanceData[compte];
+            const soldeDebit = totals.debit > totals.credit ? totals.debit - totals.credit : 0;
+            const soldeCredit = totals.credit > totals.debit ? totals.credit - totals.debit : 0;
+            const intitule = comptesMap.get(compte) ? comptesMap.get(compte).intitule : 'Inconnu';
+            const row = `<tr><td>${compte} - ${intitule}</td><td>${totals.debit.toFixed(2)}</td><td>${totals.credit.toFixed(2)}</td><td>${soldeDebit.toFixed(2)}</td><td>${soldeCredit.toFixed(2)}</td></tr>`;
+            balanceBody.innerHTML += row;
+        }
+    }
+
+    // Fonction de mise à jour du tableau des écritures temporaires
+    function updateEntriesTable() {
+        const entriesTableBody = document.getElementById('entries-table-body');
+        entriesTableBody.innerHTML = '';
+        let totalDebit = 0;
+        let totalCredit = 0;
+        entries.forEach(entry => {
+            const row = `<tr>
+                <td>${entry.compte}</td>
+                <td>${entry.compteAuxiliaire || ''}</td>
+                <td>${entry.sens === 'debit' ? entry.montant.toFixed(2) : ''}</td>
+                <td>${entry.sens === 'credit' ? entry.montant.toFixed(2) : ''}</td>
+            </tr>`;
+            entriesTableBody.innerHTML += row;
+            if (entry.sens === 'debit') totalDebit += entry.montant;
+            if (entry.sens === 'credit') totalCredit += entry.montant;
+        });
+        document.getElementById('add-entry-btn').textContent = `Ajouter (D: ${totalDebit.toFixed(2)} - C: ${totalCredit.toFixed(2)})`;
+    }
+
+    // Fonctions de gestion de la base de données
+    async function fetchSocietes() {
+        console.log('Chargement des sociétés...');
+        const { data, error } = await supabase.from('societes').select('*');
+        if (error) {
+            console.error('Erreur lors du chargement des sociétés:', error);
+            return;
+        }
+        const societeListSelect = document.getElementById('societe-list');
+        const deleteSocieteBtn = document.getElementById('delete-societe-btn');
+        societeListSelect.innerHTML = '';
+        if (data.length > 0) {
+            data.forEach(societe => {
+                const option = document.createElement('option');
+                option.value = societe.id;
+                option.textContent = societe.denomination_sociale;
+                societeListSelect.appendChild(option);
+            });
+            activeSocieteId = data[0].id;
+            activeSocieteDenomination = data[0].denomination_sociale;
+            document.getElementById('societes-tab').textContent = activeSocieteDenomination;
+            deleteSocieteBtn.style.display = 'block';
+            await loadDataForCurrentSociete();
+        } else {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'Aucune société, créez-en une.';
+            societeListSelect.appendChild(option);
+            activeSocieteId = null;
+            activeSocieteDenomination = null;
+            document.getElementById('societes-tab').textContent = 'Accueil';
+            deleteSocieteBtn.style.display = 'none';
+        }
+    }
+
+    async function fetchComptes() {
+        console.log('Chargement du plan comptable...');
+        const { data, error } = await supabase.from('comptes').select('*');
+        if (error) {
+            console.error('Erreur lors du chargement des comptes:', error);
+            return;
+        }
+        comptesMap.clear();
+        data.forEach(compte => {
+            comptesMap.set(compte.numero_compte, compte);
+        });
+        updateDatalist(data);
+        console.log('Comptes chargés :', comptesMap.size, 'comptes.');
+    }
+    
+    function updateDatalist(comptesData) {
+        const datalist = document.getElementById('comptes-list');
+        datalist.innerHTML = '';
+        comptesData.forEach(compte => {
+            const option = document.createElement('option');
+            option.value = compte.numero_compte;
+            option.textContent = `${compte.numero_compte} - ${compte.intitule}`;
+            datalist.appendChild(option);
+        });
+    }
+
+    async function fetchComptesAuxiliaires() {
+        if (!activeSocieteId) {
+            console.log("Aucune société sélectionnée, impossible de charger les comptes auxiliaires.");
+            document.getElementById('auxiliaires-list-body').innerHTML = '<tr><td colspan="4">Veuillez d\'abord sélectionner une société.</td></tr>';
+            return;
+        }
+        console.log('Chargement des comptes auxiliaires pour la société', activeSocieteId, '...');
+        const { data, error } = await supabase.from('comptes_auxiliaires').select('*').eq('societe_id', activeSocieteId);
+        if (error) {
+            console.error('Erreur lors du chargement des comptes auxiliaires:', error);
+            return;
+        }
+        comptesAuxiliairesMap.clear();
+        data.forEach(compte => {
+            comptesAuxiliairesMap.set(compte.code_auxiliaire, compte);
+        });
+        updateAuxiliairesDatalist(data);
+        displayComptesAuxiliaires(data);
+        console.log('Comptes auxiliaires chargés :', comptesAuxiliairesMap.size, 'comptes.');
+    }
+
+    function updateAuxiliairesDatalist(auxiliairesData) {
+        const datalist = document.getElementById('comptes-auxiliaires-list');
+        datalist.innerHTML = '';
+        auxiliairesData.forEach(compte => {
+            const option = document.createElement('option');
+            option.value = compte.code_auxiliaire;
+            option.textContent = `${compte.code_auxiliaire} - ${compte.intitule_auxiliaire}`;
+            datalist.appendChild(option);
+        });
+    }
+
+    function displayComptesAuxiliaires(auxiliairesData) {
+        const tableBody = document.getElementById('auxiliaires-list-body');
+        tableBody.innerHTML = '';
+        if (auxiliairesData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="4">Aucun compte auxiliaire n\'a été créé pour cette société.</td></tr>';
+            return;
+        }
+        auxiliairesData.forEach(compte => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${compte.compte_general_id}</td>
+                <td>${compte.code_auxiliaire}</td>
+                <td>${compte.intitule_auxiliaire}</td>
+                <td><button onclick="deleteAuxiliaire('${compte.id}')">Supprimer</button></td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    async function fetchJournaux() {
+        if (!activeSocieteId) {
+            console.log("Aucune société sélectionnée, impossible de charger les journaux.");
+            document.getElementById('journaux-list-body').innerHTML = '<tr><td colspan="3">Veuillez d\'abord sélectionner une société.</td></tr>';
+            return;
+        }
+        console.log('Chargement des journaux pour la société', activeSocieteId, '...');
+        const { data, error } = await supabase.from('journaux').select('*').eq('societe_id', activeSocieteId);
+        if (error) {
+            console.error('Erreur lors du chargement des journaux:', error);
+            return;
+        }
+        journauxMap.clear();
+        data.forEach(journal => {
+            journauxMap.set(journal.code_journal, journal);
+        });
+        updateJournauxSelect(data);
+        displayJournaux(data);
+        console.log('Journaux chargés :', journauxMap.size, 'journaux.');
+    }
+
+    function updateJournauxSelect(journauxData) {
+        const select = document.getElementById('journal-select');
+        select.innerHTML = '';
+        if (journauxData.length === 0) {
+            select.innerHTML = '<option value="">Aucun journal</option>';
+            return;
+        }
+        journauxData.forEach(journal => {
+            const option = document.createElement('option');
+            option.value = journal.code_journal;
+            option.textContent = `${journal.code_journal} - ${journal.libelle}`;
+            select.appendChild(option);
+        });
+    }
+
+    function displayJournaux(journauxData) {
+        const tableBody = document.getElementById('journaux-list-body');
+        tableBody.innerHTML = '';
+        if (journauxData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="3">Aucun journal n\'a été créé pour cette société.</td></tr>';
+            return;
+        }
+        journauxData.forEach(journal => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${journal.code_journal}</td>
+                <td>${journal.libelle}</td>
+                <td><button onclick="deleteJournal('${journal.id}')">Supprimer</button></td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    async function fetchTVA() {
+        if (!activeSocieteId) {
+            document.getElementById('tva-list-body').innerHTML = '<tr><td colspan="3">Veuillez d\'abord sélectionner une société.</td></tr>';
+            return;
+        }
+        const { data, error } = await supabase.from('tva').select('*').eq('societe_id', activeSocieteId);
+        if (error) {
+            console.error('Erreur lors du chargement de la TVA:', error);
+            return;
+        }
+        tvaMap.clear();
+        data.forEach(tva => {
+            tvaMap.set(tva.id, tva);
+        });
+        displayTVA(data);
+    }
+    
+    function displayTVA(tvaData) {
+        const tableBody = document.getElementById('tva-list-body');
+        tableBody.innerHTML = '';
+        if (tvaData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="3">Aucun taux de TVA n\'a été créé pour cette société.</td></tr>';
+            return;
+        }
+        tvaData.forEach(tva => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${tva.taux.toFixed(2)} %</td>
+                <td>${tva.libelle}</td>
+                <td><button onclick="deleteTVA('${tva.id}')">Supprimer</button></td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    async function fetchDevises() {
+        if (!activeSocieteId) {
+            document.getElementById('devises-list-body').innerHTML = '<tr><td colspan="4">Veuillez d\'abord sélectionner une société.</td></tr>';
+            return;
+        }
+        const { data, error } = await supabase.from('devises').select('*').eq('societe_id', activeSocieteId);
+        if (error) {
+            console.error('Erreur lors du chargement des devises:', error);
+            return;
+        }
+        devisesMap.clear();
+        data.forEach(devise => {
+            devisesMap.set(devise.id, devise);
+        });
+        displayDevises(data);
+    }
+
+    function displayDevises(devisesData) {
+        const tableBody = document.getElementById('devises-list-body');
+        tableBody.innerHTML = '';
+        if (devisesData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="4">Aucune devise n\'a été créée pour cette société.</td></tr>';
+            return;
+        }
+        devisesData.forEach(devise => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${devise.code_devise}</td>
+                <td>${devise.symbole}</td>
+                <td>${devise.libelle}</td>
+                <td><button onclick="deleteDevise('${devise.id}')">Supprimer</button></td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    async function fetchPaiements() {
+        if (!activeSocieteId) {
+            document.getElementById('paiements-list-body').innerHTML = '<tr><td colspan="3">Veuillez d\'abord sélectionner une société.</td></tr>';
+            return;
+        }
+        const { data, error } = await supabase.from('modes_paiement').select('*').eq('societe_id', activeSocieteId);
+        if (error) {
+            console.error('Erreur lors du chargement des modes de paiement:', error);
+            return;
+        }
+        paiementsMap.clear();
+        data.forEach(paiement => {
+            paiementsMap.set(paiement.id, paiement);
+        });
+        displayPaiements(data);
+    }
+    
+    function displayPaiements(paiementsData) {
+        const tableBody = document.getElementById('paiements-list-body');
+        tableBody.innerHTML = '';
+        if (paiementsData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="3">Aucun mode de paiement n\'a été créé pour cette société.</td></tr>';
+            return;
+        }
+        paiementsData.forEach(paiement => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${paiement.code_mode}</td>
+                <td>${paiement.libelle}</td>
+                <td><button onclick="deletePaiement('${paiement.id}')">Supprimer</button></td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    async function loadDataForCurrentSociete() {
+        await loadEtatsFinanciers();
+        await fetchComptesAuxiliaires();
+        await fetchJournaux();
+        await fetchTVA();
+        await fetchDevises();
+        await fetchPaiements();
+    }
+
+    async function loadEtatsFinanciers() {
+        if (!activeSocieteId) {
+            document.querySelectorAll('#etats-section .table-container p').forEach(p => p.textContent = "Veuillez d'abord sélectionner une société.");
+            return;
+        }
+        const { data, error } = await supabase.from('grand_livre').select('*').eq('societe_id', activeSocieteId).order('date', { ascending: false });
+        if (error) {
+            console.error('Erreur lors du chargement des données:', error);
+            return;
+        }
+        grandLivreData = data;
+        
+        const comptesSoldes = new Map();
+        grandLivreData.forEach(entry => {
+            if (!comptesSoldes.has(entry.compte)) {
+                comptesSoldes.set(entry.compte, { debit: 0, credit: 0 });
+            }
+            const solde = comptesSoldes.get(entry.compte);
+            solde.debit += entry.debit;
+            solde.credit += entry.credit;
+        });
+
+        bilanData.clear();
+        resultatData.clear();
+        resultatNet = 0;
+        
+        const comptesBilan = new Map();
+
+        comptesSoldes.forEach((solde, compte) => {
+            const numeroCompte = parseInt(compte.charAt(0));
+            const soldeFinal = solde.debit - solde.credit;
+            const intitule = comptesMap.get(compte)?.intitule || 'Intitulé inconnu';
+
+            if (numeroCompte >= 1 && numeroCompte <= 5) {
+                bilanData.set(compte, { solde: soldeFinal, intitule });
+                comptesBilan.set(compte, { solde: soldeFinal, intitule });
+            } else if (numeroCompte >= 6 && numeroCompte <= 7) {
+                resultatData.set(compte, { solde: soldeFinal, intitule });
+                resultatNet += soldeFinal; 
+            }
+        });
+        
+        bilanData.set('13', { solde: -resultatNet, intitule: 'Résultat Net' });
+        
+        tftData = calculateTFT(comptesBilan, resultatNet);
+        
+        displayEtatsFinanciers();
+    }
+    
+    function calculateTFT(comptesBilan, resultatNet) {
+        let fluxOperationnels = resultatNet;
+        let fluxInvestissement = 0;
+        let fluxFinancement = 0;
+
+        comptesBilan.forEach((data, compte) => {
+            const numeroCompte = parseInt(compte.charAt(0));
+            
+            if (compte.startsWith('40') || compte.startsWith('44')) {
+                fluxOperationnels -= data.solde;
+            } else if (compte.startsWith('41')) {
+                fluxOperationnels -= data.solde;
+            } else if (compte.startsWith('3')) {
+                fluxOperationnels -= data.solde;
+            } else if (compte.startsWith('2')) {
+                fluxInvestissement -= data.solde;
+            } else if (compte.startsWith('1')) {
+                if (compte !== '13') {
+                    fluxFinancement += data.solde;
+                }
+            }
+        });
+        
+        const variationTresorerie = fluxOperationnels + fluxInvestissement + fluxFinancement;
+        
+        return {
+            fluxOperationnels: fluxOperationnels,
+            fluxInvestissement: fluxInvestissement,
+            fluxFinancement: fluxFinancement,
+            variationTresorerie: variationTresorerie
+        };
+    }
+    
+    function displayEtatsFinanciers() {
+        const etatsSelect = document.getElementById('etats-select');
+        const selectedEtat = etatsSelect.value;
+        const exportBtn = document.getElementById('export-pdf-btn');
+        document.querySelectorAll('#etats-section .table-container').forEach(sec => sec.style.display = 'none');
+        document.getElementById(`${selectedEtat}-content`).style.display = 'block';
+
+        if (selectedEtat !== 'annexes') { 
+            exportBtn.style.display = 'block';
+        } else {
+            exportBtn.style.display = 'none';
+        }
+
+        if (selectedEtat === 'grand-livre') {
+            displayGrandLivre();
+        } else if (selectedEtat === 'journal') {
+            displayJournal();
+        } else if (selectedEtat === 'balance') {
+            displayBalance();
+        } else if (selectedEtat === 'bilan') {
+            displayBilan();
+        } else if (selectedEtat === 'compte-resultat') {
+            displayCompteResultat();
+        } else if (selectedEtat === 'tresorerie') {
+            displayTresorerie();
+        } else if (selectedEtat === 'annexes') {
+            displayAnnexes();
+        }
+    }
+
+    function displayBilan() {
+        const bilanContent = document.getElementById('bilan-content');
+        bilanContent.innerHTML = '<h3>Bilan</h3><table id="bilan-table"><thead><tr><th>Actif</th><th>Montant</th><th>Passif</th><th>Montant</th></tr></thead><tbody></tbody></table>';
+        const bilanTableBody = document.getElementById('bilan-table').querySelector('tbody');
+        
+        const actifs = [];
+        const passifs = [];
+        let totalActif = 0;
+        let totalPassif = 0;
+
+        bilanData.forEach((data, compte) => {
+            const numeroCompte = parseInt(compte.charAt(0));
+            if (data.solde > 0) { 
+                if (numeroCompte === 1 || numeroCompte === 4 || numeroCompte === 5) {
+                    passifs.push({ compte, intitule: data.intitule, montant: data.solde });
+                    totalPassif += data.solde;
+                } else {
+                    actifs.push({ compte, intitule: data.intitule, montant: data.solde });
+                    totalActif += data.solde;
+                }
+            } else if (data.solde < 0) { 
+                if (numeroCompte === 1 || numeroCompte === 4 || numeroCompte === 5) {
+                    passifs.push({ compte, intitule: data.intitule, montant: -data.solde });
+                    totalPassif += -data.solde;
+                } else {
+                    actifs.push({ compte, intitule: data.intitule, montant: -data.solde });
+                    totalActif += -data.solde;
+                }
+            }
+        });
+        
+        const maxRows = Math.max(actifs.length, passifs.length);
+        for (let i = 0; i < maxRows; i++) {
+            const actif = actifs[i] || { compte: '', intitule: '', montant: '' };
+            const passif = passifs[i] || { compte: '', intitule: '', montant: '' };
+            
+            const row = `<tr>
+                <td>${actif.compte} - ${actif.intitule}</td>
+                <td style="text-align: right;">${actif.montant ? actif.montant.toFixed(2) : ''}</td>
+                <td>${passif.compte} - ${passif.intitule}</td>
+                <td style="text-align: right;">${passif.montant ? passif.montant.toFixed(2) : ''}</td>
+            </tr>`;
+            bilanTableBody.innerHTML += row;
+        }
+        
+        const totalRow = `<tr>
+            <th>TOTAL ACTIF</th>
+            <th style="text-align: right;">${totalActif.toFixed(2)}</th>
+            <th>TOTAL PASSIF</th>
+            <th style="text-align: right;">${totalPassif.toFixed(2)}</th>
+        </tr>`;
+        bilanTableBody.innerHTML += totalRow;
+    }
+
+    function displayCompteResultat() {
+        const resultatContent = document.getElementById('compte-resultat-content');
+        resultatContent.innerHTML = '<h3>Compte de Résultat</h3><table id="resultat-table"><thead><tr><th>Compte</th><th>Intitulé</th><th>Débit</th><th>Crédit</th></tr></thead><tbody></tbody></table><p id="resultat-net-p"></p>';
+        const resultatTableBody = document.getElementById('resultat-table').querySelector('tbody');
+
+        let totalProduits = 0;
+        let totalCharges = 0;
+
+        resultatData.forEach((data, compte) => {
+            const row = document.createElement('tr');
+            const soldeFinal = data.solde;
+            const debit = soldeFinal > 0 ? soldeFinal : 0;
+            const credit = soldeFinal < 0 ? -soldeFinal : 0;
+
+            if (debit > 0) {
+                totalCharges += debit;
+            } else {
+                totalProduits += credit;
+            }
+
+            row.innerHTML = `
+                <td>${compte}</td>
+                <td>${data.intitule}</td>
+                <td style="text-align: right;">${debit.toFixed(2)}</td>
+                <td style="text-align: right;">${credit.toFixed(2)}</td>
+            `;
+            resultatTableBody.appendChild(row);
+        });
+
+        const totalRow = `<tr>
+            <th colspan="2">Totaux</th>
+            <th style="text-align: right;">${totalCharges.toFixed(2)}</th>
+            <th style="text-align: right;">${totalProduits.toFixed(2)}</th>
+        </tr>`;
+        resultatTableBody.innerHTML += totalRow;
+        
+        document.getElementById('resultat-net-p').textContent = `Résultat Net (Bénéfice/Perte) : ${resultatNet.toFixed(2)}`;
+    }
+
+    function displayTresorerie() {
+        const tresorerieContent = document.getElementById('tresorerie-content');
+        tresorerieContent.innerHTML = '<h3>Tableau des Flux de Trésorerie</h3><table id="tresorerie-table"><thead><tr><th>Flux de trésorerie</th><th>Montant</th></tr></thead><tbody></tbody></table>';
+        const tresorerieTableBody = document.getElementById('tresorerie-table').querySelector('tbody');
+        
+        const rows = [
+            { label: 'Flux de trésorerie liés aux activités opérationnelles', value: tftData.fluxOperationnels },
+            { label: 'Flux de trésorerie liés aux activités d\'investissement', value: tftData.fluxInvestissement },
+            { label: 'Flux de trésorerie liés aux activités de financement', value: tftData.fluxFinancement },
+            { label: 'Variation de la trésorerie', value: tftData.variationTresorerie, isTotal: true }
+        ];
+
+        rows.forEach(row => {
+            const tr = document.createElement('tr');
+            if (row.isTotal) {
+                tr.innerHTML = `<th>${row.label}</th><th style="text-align: right;">${row.value.toFixed(2)}</th>`;
+            } else {
+                tr.innerHTML = `<td>${row.label}</td><td style="text-align: right;">${row.value.toFixed(2)}</td>`;
+            }
+            tresorerieTableBody.appendChild(tr);
+        });
+    }
+
+    function displayAnnexes() {
+        const annexesContent = document.getElementById('annexes-content');
+        annexesContent.innerHTML = '<h3>Annexes Comptables</h3><p>Ceci est un espace pour la saisie manuelle des annexes (notes sur les méthodes comptables, détails sur les créances, etc.).</p>';
+        
+        const notesSection = document.createElement('div');
+        notesSection.innerHTML = `
+            <h4>Notes sur les états financiers</h4>
+            <textarea id="notes-annexes" style="width:100%; height:200px;"></textarea>
+            <button class="btn" onclick="saveAnnexes()">Enregistrer</button>
+        `;
+        annexesContent.appendChild(notesSection);
+    }
+
+    function populateSoldesTable() {
+        const soldesOuvertureTableBody = document.getElementById('soldes-ouverture-table-body');
+        soldesOuvertureTableBody.innerHTML = '';
+        comptesMap.forEach((compte) => {
+            if (compte.type_compte === 'Bilan') {
+                const row = document.createElement('tr');
+                row.dataset.compte = compte.numero_compte;
+                row.innerHTML = `
+                    <td>${compte.numero_compte}</td>
+                    <td>${compte.intitule}</td>
+                    <td><input type="number" step="0.01" class="debit-input"></td>
+                    <td><input type="number" step="0.01" class="credit-input"></td>
+                `;
+                soldesOuvertureTableBody.appendChild(row);
+            }
+        });
+    }
+    
+    async function exportPDF() {
+        const selectedEtat = document.getElementById('etats-select').value;
+        const elementId = `${selectedEtat}-content`;
+        const element = document.getElementById(elementId);
+        const { jsPDF } = window.jspdf;
+        
+        const filename = `${activeSocieteDenomination} - ${selectedEtat}.pdf`;
+        
+        const actionsHeader = element.querySelector('th:last-child');
+        const actionCells = element.querySelectorAll('td:last-child');
+        
+        let actionsHidden = false;
+        if (actionsHeader && actionsHeader.textContent === 'Actions') {
+            actionsHeader.style.display = 'none';
+            actionCells.forEach(cell => cell.style.display = 'none');
+            actionsHidden = true;
+        }
+
+        const canvas = await html2canvas(element, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const imgWidth = 190;
+        const pageHeight = 295;
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 10;
+        
+        doc.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight + 10;
+            doc.addPage();
+            doc.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+        
+        if (actionsHidden) {
+            actionsHeader.style.display = 'table-cell';
+            actionCells.forEach(cell => cell.style.display = 'table-cell');
+        }
+
+        doc.save(filename);
+        showAlert(`Le fichier ${filename} a été exporté avec succès !`);
+    }
+
+    function showSection(id) {
+        document.querySelectorAll('.section').forEach(sec => {
+            sec.style.display = 'none';
+        });
+        document.getElementById(id).style.display = 'block';
+    }
+
+    function showSubSection(sectionId, subSectionId) {
+        document.getElementById(sectionId).querySelectorAll('.sub-section').forEach(sub => {
+            sub.style.display = 'none';
+        });
+        document.getElementById(subSectionId).style.display = 'block';
+        document.getElementById(sectionId).querySelectorAll('.sub-tabs button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.getElementById(`${subSectionId.replace('-content', '-sub-tab')}`).classList.add('active');
+    }
+
+    function initializeDOM() {
+        console.log('DOM prêt. Initialisation des composants...');
+
+        const tabs = document.querySelectorAll('.tabs button');
+        const manuelTab = document.getElementById('manuel-tab');
+        const societeListSelect = document.getElementById('societe-list');
+        const addSocieteBtn = document.getElementById('add-societe-btn');
+        const deleteSocieteBtn = document.getElementById('delete-societe-btn');
+        const createSocieteForm = document.getElementById('create-societe-form');
+        const saveNewSocieteBtn = document.getElementById('save-new-societe-btn');
+        const openSoldesBtn = document.getElementById('open-soldes-btn');
+        const soldesOuvertureTableBody = document.getElementById('soldes-ouverture-table-body');
+        const saveSoldesBtn = document.getElementById('save-soldes-btn');
+        const cancelSoldesBtn = document.getElementById('cancel-soldes-btn');
+        const newSocieteDenominationInput = document.getElementById('new-societe-denomination');
+        const journalSelect = document.getElementById('journal-select');
+        const etatsSelect = document.getElementById('etats-select');
+        const exportPdfBtn = document.getElementById('export-pdf-btn');
+        const compteInput = document.getElementById('compte-input');
+        const intituleCompteInput = document.getElementById('intitule-compte-input');
+        const compteAuxiliaireInput = document.getElementById('compte-auxiliaire-input');
+        const montantInput = document.getElementById('montant-input');
+        const addEntryBtn = document.getElementById('add-entry-btn');
+        const savePieceBtn = document.getElementById('save-piece-btn');
+        const dateInput = document.getElementById('date-input');
+        const pieceInput = document.getElementById('piece-input');
+        const libelleInput = document.getElementById('libelle-input');
+        const dateOuvertureInput = document.getElementById('date-ouverture-input');
+
+        const auxCompteGeneralSelect = document.getElementById('aux-compte-general-select');
+        const newAuxiliaireCodeInput = document.getElementById('new-auxiliaire-code');
+        const newAuxiliaireIntituleInput = document.getElementById('new-auxiliaire-intitule');
+        const saveNewAuxiliaireBtn = document.getElementById('save-new-auxiliaire-btn');
+
+        const newJournalCodeInput = document.getElementById('new-journal-code');
+        const newJournalLibelleInput = document.getElementById('new-journal-libelle');
+        const saveNewJournalBtn = document.getElementById('save-new-journal-btn');
+
+        const newTvaTauxInput = document.getElementById('new-tva-taux');
+        const newTvaLibelleInput = document.getElementById('new-tva-libelle');
+        const saveNewTvaBtn = document.getElementById('save-new-tva-btn');
+
+        const newDeviseCodeInput = document.getElementById('new-devise-code');
+        const newDeviseSymboleInput = document.getElementById('new-devise-symbole');
+        const newDeviseLibelleInput = document.getElementById('new-devise-libelle');
+        const saveNewDeviseBtn = document.getElementById('save-new-devise-btn');
+
+        const newPaiementCodeInput = document.getElementById('new-paiement-code');
+        const newPaiementLibelleInput = document.getElementById('new-paiement-libelle');
+        const saveNewPaiementBtn = document.getElementById('save-new-paiement-btn');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', async () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const sectionId = tab.id.replace('-tab', '-section');
+                showSection(sectionId);
+                if (sectionId === 'etats-section') {
+                    await loadEtatsFinanciers();
+                } else if (sectionId === 'auxiliaires-section') {
+                    await fetchComptesAuxiliaires();
+                    populateCompteGeneralSelect();
+                } else if (sectionId === 'parametres-section') {
+                    document.getElementById('journaux-sub-tab').click();
+                }
+            });
+        });
+        
+        manuelTab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            showSection('manuel-section');
+        });
+
+        document.getElementById('journaux-sub-tab').addEventListener('click', async () => {
+            showSubSection('parametres-section', 'journaux-content');
+            await fetchJournaux();
+        });
+        document.getElementById('tva-sub-tab').addEventListener('click', async () => {
+            showSubSection('parametres-section', 'tva-content');
+            await fetchTVA();
+        });
+        document.getElementById('devises-sub-tab').addEventListener('click', async () => {
+            showSubSection('parametres-section', 'devises-content');
+            await fetchDevises();
+        });
+        document.getElementById('paiements-sub-tab').addEventListener('click', async () => {
+            showSubSection('parametres-section', 'paiements-content');
+            await fetchPaiements();
+        });
+
+        etatsSelect.addEventListener('change', () => {
+            displayEtatsFinanciers();
+        });
+
+        exportPdfBtn.addEventListener('click', exportPDF);
+
+        societeListSelect.addEventListener('change', async (e) => {
+            activeSocieteId = e.target.value;
+            activeSocieteDenomination = e.target.options[e.target.selectedIndex].textContent;
+            document.getElementById('societes-tab').textContent = activeSocieteDenomination;
+            deleteSocieteBtn.style.display = activeSocieteId ? 'block' : 'none';
+            await loadDataForCurrentSociete();
+        });
+        
+        addSocieteBtn.addEventListener('click', () => {
+            createSocieteForm.style.display = 'block';
+        });
+
+        saveNewSocieteBtn.addEventListener('click', async () => {
+            const denomination = newSocieteDenominationInput.value;
+            if (!denomination) {
+                showAlert("Veuillez entrer une dénomination sociale.");
+                return;
+            }
+            const { error } = await supabase.from('societes').insert({ denomination_sociale: denomination });
+            if (error) {
+                console.error("Erreur lors de la création de la société:", error);
+                showAlert("Erreur lors de la création de la société. Veuillez réessayer.");
+                return;
+            }
+            showAlert("Société créée avec succès !");
+            createSocieteForm.style.display = 'none';
+            newSocieteDenominationInput.value = '';
+            fetchSocietes();
+        });
+        
+        deleteSocieteBtn.addEventListener('click', async () => {
+            if (!activeSocieteId) {
+                showAlert("Aucune société n'est sélectionnée à supprimer.");
+                return;
+            }
+            if (confirm(`Êtes-vous sûr de vouloir supprimer la société "${activeSocieteDenomination}" et toutes ses données associées ? Cette action est irréversible.`)) {
+                try {
+                    // Suppression des données liées (grand_livre, journaux, auxiliaires, etc.)
+                    await supabase.from('grand_livre').delete().eq('societe_id', activeSocieteId);
+                    await supabase.from('journaux').delete().eq('societe_id', activeSocieteId);
+                    await supabase.from('comptes_auxiliaires').delete().eq('societe_id', activeSocieteId);
+                    await supabase.from('tva').delete().eq('societe_id', activeSocieteId);
+                    await supabase.from('devises').delete().eq('societe_id', activeSocieteId);
+                    await supabase.from('modes_paiement').delete().eq('societe_id', activeSocieteId);
+                    
+                    // Suppression de la société elle-même
+                    const { error } = await supabase.from('societes').delete().eq('id', activeSocieteId);
+                    if (error) {
+                        console.error("Erreur lors de la suppression de la société:", error);
+                        showAlert("Erreur lors de la suppression de la société. Veuillez réessayer.");
+                        return;
+                    }
+                    showAlert("Société et données associées supprimées avec succès !");
+                    fetchSocietes();
+                } catch (e) {
+                    console.error("Erreur lors de la suppression de la société:", e);
+                    showAlert("Une erreur inattendue est survenue.");
+                }
+            }
+        });
+
+        openSoldesBtn.addEventListener('click', async () => {
+            const denomination = newSocieteDenominationInput.value;
+            if (!denomination) {
+                showAlert("Veuillez d'abord entrer une dénomination sociale pour la société.");
+                return;
+            }
+            const { data: newSociete, error: societeError } = await supabase.from('societes').insert({ denomination_sociale: denomination }).select();
+            if (societeError) {
+                console.error("Erreur lors de la création de la société:", societeError);
+                return;
+            }
+            activeSocieteId = newSociete[0].id;
+            activeSocieteDenomination = newSociete[0].denomination_sociale;
+            showSection('soldes-ouverture-section');
+            populateSoldesTable();
+        });
+
+        cancelSoldesBtn.addEventListener('click', () => {
+            showSection('societes-section');
+            createSocieteForm.style.display = 'none';
+            fetchSocietes();
+        });
+
+        saveSoldesBtn.addEventListener('click', async () => {
+            const dateOuverture = dateOuvertureInput.value;
+            if (!dateOuverture) {
+                showAlert("Veuillez sélectionner une date pour le bilan d'ouverture.");
+                return;
+            }
+            const soldes = Array.from(soldesOuvertureTableBody.querySelectorAll('tr')).map(row => {
+                const compte = row.dataset.compte;
+                const debit = parseFloat(row.querySelector('input.debit-input').value) || 0;
+                const credit = parseFloat(row.querySelector('input.credit-input').value) || 0;
+                return { compte, debit, credit };
+            }).filter(s => s.debit > 0 || s.credit > 0);
+            const totalDebit = soldes.reduce((sum, s) => sum + s.debit, 0);
+            const totalCredit = soldes.reduce((sum, s) => sum + s.credit, 0);
+            if (Math.abs(totalDebit - totalCredit) > 0.01) {
+                showAlert("Le total des débits ne correspond pas au total des crédits.");
+                return;
+            }
+            const inserts = soldes.map(s => ({
+                date: dateOuverture,
+                compte: s.compte,
+                libelle: 'Solde d\'ouverture',
+                debit: s.debit,
+                credit: s.credit,
+                piece: 'OD-SOLDE',
+                journal: 'opérations diverses',
+                societe_id: activeSocieteId
+            }));
+            const { error } = await supabase.from('grand_livre').insert(inserts);
+            if (error) {
+                console.error("Erreur lors de l'enregistrement des soldes:", error);
+                showAlert("Erreur lors de l'enregistrement des soldes.");
+                return;
+            }
+            showAlert("Soldes d'ouverture enregistrés avec succès !");
+            showSection('societes-section');
+            fetchSocietes();
+        });
+        
+        compteInput.addEventListener('input', (e) => {
+            const numeroCompte = e.target.value;
+            const compte = comptesMap.get(numeroCompte);
+            intituleCompteInput.value = compte ? compte.intitule : 'Compte introuvable';
+        });
+
+        addEntryBtn.addEventListener('click', () => {
+            const compte = compteInput.value;
+            const compteAuxiliaire = compteAuxiliaireInput.value;
+            const montant = parseFloat(montantInput.value);
+            const sens = document.querySelector('input[name="sens"]:checked');
+
+            if (!compte || !montant || !sens) {
+                showAlert('Veuillez remplir les champs obligatoires (compte, montant, sens).');
+                return;
+            }
+            if (!comptesMap.has(compte)) {
+                showAlert('Le numéro de compte saisi n\'existe pas dans le plan comptable.');
+                return;
+            }
+            entries.push({ compte, compteAuxiliaire, montant, sens: sens.value });
+            updateEntriesTable();
+            compteInput.value = '';
+            compteAuxiliaireInput.value = '';
+            montantInput.value = '';
+            if (sens) sens.checked = false;
+            intituleCompteInput.value = '';
+        });
+        
+        savePieceBtn.addEventListener('click', async () => {
+            if (!activeSocieteId) {
+                showAlert("Veuillez d'abord sélectionner une société.");
+                return;
+            }
+            const date = dateInput.value;
+            const piece = pieceInput.value;
+            const libelle = libelleInput.value;
+            const journal = journalSelect.value;
+            
+            if (!editingPieceId) {
+                const { count, error: countError } = await supabase
+                    .from('grand_livre')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('societe_id', activeSocieteId)
+                    .eq('journal', journal)
+                    .eq('piece', piece);
+                
+                if (countError) {
+                    console.error("Erreur lors de la vérification de la pièce:", countError);
+                    showAlert("Erreur interne, veuillez réessayer.");
+                    return;
+                }
+                if (count > 0) {
+                    showAlert("Ce numéro de pièce existe déjà pour ce journal. Veuillez en choisir un autre.");
+                    return;
+                }
+            }
+
+            const totalDebit = entries.filter(e => e.sens === 'debit').reduce((sum, e) => sum + e.montant, 0);
+            const totalCredit = entries.filter(e => e.sens === 'credit').reduce((sum, e) => sum + e.montant, 0);
+            
+            if (!piece) {
+                showAlert("Veuillez entrer un numéro de pièce.");
+                return;
+            }
+            if (Math.abs(totalDebit - totalCredit) > 0.01) {
+                showAlert(`Déséquilibre ! Total Débit: ${totalDebit.toFixed(2)}, Total Crédit: ${totalCredit.toFixed(2)}.`);
+                return;
+            }
+            
+            const inserts = entries.map(e => ({
+                date: date,
+                compte: e.compte,
+                compte_auxiliaire: e.compteAuxiliaire,
+                libelle: libelle,
+                debit: e.sens === 'debit' ? e.montant : 0,
+                credit: e.sens === 'credit' ? e.montant : 0,
+                piece: piece,
+                journal: journal,
+                societe_id: activeSocieteId
+            }));
+
+            if (editingPieceId) {
+                const { error: deleteError } = await supabase.from('grand_livre').delete().eq('societe_id', activeSocieteId).eq('piece', editingPieceId);
+                if (deleteError) {
+                    console.error("Erreur lors de la suppression de l'ancienne pièce:", deleteError);
+                    showAlert("Erreur lors de la mise à jour de la pièce.");
+                    return;
+                }
+            }
+
+            const { error } = await supabase.from('grand_livre').insert(inserts);
+            if (error) {
+                console.error("Erreur lors de l'enregistrement de la pièce:", error);
+                showAlert("Erreur lors de l'enregistrement de la pièce.");
+                return;
+            }
+            
+            showAlert(`Pièce ${editingPieceId ? 'mise à jour' : 'enregistrée'} avec succès !`);
+            editingPieceId = null;
+            entries.length = 0;
+            updateEntriesTable();
+            dateInput.value = '';
+            pieceInput.value = '';
+            libelleInput.value = '';
+            loadEtatsFinanciers();
+            document.getElementById('pieces-tab').click();
+        });
+
+        saveNewAuxiliaireBtn.addEventListener('click', async () => {
+            if (!activeSocieteId) {
+                showAlert("Veuillez d'abord sélectionner une société.");
+                return;
+            }
+            const compteGeneralId = auxCompteGeneralSelect.value;
+            const code = newAuxiliaireCodeInput.value;
+            const intitule = newAuxiliaireIntituleInput.value;
+            if (!compteGeneralId || !code || !intitule) {
+                showAlert("Veuillez remplir tous les champs.");
+                return;
+            }
+            const { error } = await supabase.from('comptes_auxiliaires').insert({
+                compte_general_id: compteGeneralId,
+                code_auxiliaire: code,
+                intitule_auxiliaire: intitule,
+                societe_id: activeSocieteId
+            });
+            if (error) {
+                console.error("Erreur lors de l'enregistrement du compte auxiliaire:", error);
+                showAlert("Erreur lors de l'enregistrement du compte auxiliaire.");
+                return;
+            }
+            showAlert("Compte auxiliaire enregistré avec succès !");
+            newAuxiliaireCodeInput.value = '';
+            newAuxiliaireIntituleInput.value = '';
+            fetchComptesAuxiliaires();
+        });
+
+        saveNewJournalBtn.addEventListener('click', async () => {
+            if (!activeSocieteId) {
+                showAlert("Veuillez d'abord sélectionner une société.");
+                return;
+            }
+            const code = newJournalCodeInput.value.toUpperCase();
+            const libelle = newJournalLibelleInput.value;
+
+            if (!code || !libelle) {
+                showAlert("Veuillez remplir le code et le libellé du journal.");
+                return;
+            }
+
+            const { error } = await supabase.from('journaux').insert({
+                code_journal: code,
+                libelle: libelle,
+                societe_id: activeSocieteId
+            });
+
+            if (error) {
+                console.error("Erreur lors de l'enregistrement du journal:", error);
+                showAlert("Erreur lors de l'enregistrement du journal.");
+                return;
+            }
+            showAlert("Journal enregistré avec succès !");
+            newJournalCodeInput.value = '';
+            newJournalLibelleInput.value = '';
+            fetchJournaux();
+        });
+
+        saveNewTvaBtn.addEventListener('click', async () => {
+            if (!activeSocieteId) {
+                showAlert("Veuillez d'abord sélectionner une société.");
+                return;
+            }
+            const taux = parseFloat(newTvaTauxInput.value);
+            const libelle = newTvaLibelleInput.value;
+
+            if (isNaN(taux) || !libelle) {
+                showAlert("Veuillez remplir le taux et le libellé de la TVA.");
+                return;
+            }
+
+            const { error } = await supabase.from('tva').insert({
+                taux: taux,
+                libelle: libelle,
+                societe_id: activeSocieteId
+            });
+
+            if (error) {
+                console.error("Erreur lors de l'enregistrement du taux de TVA:", error);
+                showAlert("Erreur lors de l'enregistrement du taux de TVA.");
+                return;
+            }
+            showAlert("Taux de TVA supprimé avec succès.");
+            newTvaTauxInput.value = '';
+            newTvaLibelleInput.value = '';
+            fetchTVA();
+        });
+
+        saveNewDeviseBtn.addEventListener('click', async () => {
+            if (!activeSocieteId) {
+                showAlert("Veuillez d'abord sélectionner une société.");
+                return;
+            }
+            const code = newDeviseCodeInput.value.toUpperCase();
+            const symbole = newDeviseSymboleInput.value;
+            const libelle = newDeviseLibelleInput.value;
+
+            if (!code || !symbole || !libelle) {
+                showAlert("Veuillez remplir tous les champs pour la devise.");
+                return;
+            }
+
+            const { error } = await supabase.from('devises').insert({
+                code_devise: code,
+                symbole: symbole,
+                libelle: libelle,
+                societe_id: activeSocieteId
+            });
+
+            if (error) {
+                console.error("Erreur lors de l'enregistrement de la devise:", error);
+                showAlert("Erreur lors de l'enregistrement de la devise.");
+                return;
+            }
+            showAlert("Devise enregistrée avec succès.");
+            newDeviseCodeInput.value = '';
+            newDeviseSymboleInput.value = '';
+            newDeviseLibelleInput.value = '';
+            fetchDevises();
+        });
+        
+        saveNewPaiementBtn.addEventListener('click', async () => {
+            if (!activeSocieteId) {
+                showAlert("Veuillez d'abord sélectionner une société.");
+                return;
+            }
+            const code = newPaiementCodeInput.value.toUpperCase();
+            const libelle = newPaiementLibelleInput.value;
+
+            if (!code || !libelle) {
+                showAlert("Veuillez remplir tous les champs pour le mode de paiement.");
+                return;
+            }
+
+            const { error } = await supabase.from('modes_paiement').insert({
+                code_mode: code,
+                libelle: libelle,
+                societe_id: activeSocieteId
+            });
+
+            if (error) {
+                console.error("Erreur lors de l'enregistrement du mode de paiement:", error);
+                showAlert("Erreur lors de l'enregistrement du mode de paiement.");
+                return;
+            }
+            showAlert("Mode de paiement enregistré avec succès.");
+            newPaiementCodeInput.value = '';
+            newPaiementLibelleInput.value = '';
+            fetchPaiements();
+        });
+
+        window.deleteAuxiliaire = async (id) => {
+            if (confirm("Êtes-vous sûr de vouloir supprimer ce compte auxiliaire ?")) {
+                const { error } = await supabase.from('comptes_auxiliaires').delete().eq('id', id);
+                if (error) {
+                    console.error("Erreur lors de la suppression:", error);
+                    showAlert("Erreur lors de la suppression du compte auxiliaire.");
+                    return;
+                }
+                showAlert("Compte auxiliaire supprimé avec succès.");
+                fetchComptesAuxiliaires();
+            }
+        };
+
+        window.deleteJournal = async (id) => {
+            if (confirm("Êtes-vous sûr de vouloir supprimer ce journal ?")) {
+                const { error } = await supabase.from('journaux').delete().eq('id', id);
+                if (error) {
+                    console.error("Erreur lors de la suppression:", error);
+                    showAlert("Erreur lors de la suppression du journal.");
+                    return;
+                }
+                showAlert("Journal supprimé avec succès.");
+                fetchJournaux();
+            }
+        };
+
+        window.deleteTVA = async (id) => {
+            if (confirm("Êtes-vous sûr de vouloir supprimer ce taux de TVA ?")) {
+                const { error } = await supabase.from('tva').delete().eq('id', id);
+                if (error) {
+                    console.error("Erreur lors de la suppression:", error);
+                    showAlert("Erreur lors de la suppression du taux de TVA.");
+                    return;
+                }
+                showAlert("Taux de TVA supprimé avec succès.");
+                fetchTVA();
+            }
+        };
+
+        window.deleteDevise = async (id) => {
+            if (confirm("Êtes-vous sûr de vouloir supprimer cette devise ?")) {
+                const { error } = await supabase.from('devises').delete().eq('id', id);
+                if (error) {
+                    console.error("Erreur lors de la suppression:", error);
+                    showAlert("Erreur lors de la suppression de la devise.");
+                    return;
+                }
+                showAlert("Devise supprimée avec succès.");
+                fetchDevises();
+            }
+        };
+
+        window.deletePaiement = async (id) => {
+            if (confirm("Êtes-vous sûr de vouloir supprimer ce mode de paiement ?")) {
+                const { error } = await supabase.from('modes_paiement').delete().eq('id', id);
+                if (error) {
+                    console.error("Erreur lors de la suppression:", error);
+                    showAlert("Erreur lors de la suppression du mode de paiement.");
+                    return;
+                }
+                showAlert("Mode de paiement supprimé avec succès.");
+                fetchPaiements();
+            }
+        };
+
+        window.editEntry = (pieceToEdit) => {
+            const pieceData = grandLivreData.filter(e => e.piece === pieceToEdit);
+            if (pieceData.length === 0) {
+                showAlert("Pièce introuvable.");
+                return;
+            }
+            editingPieceId = pieceToEdit;
+            document.getElementById('date-input').value = pieceData[0].date;
+            document.getElementById('piece-input').value = pieceData[0].piece;
+            document.getElementById('libelle-input').value = pieceData[0].libelle;
+            document.getElementById('journal-select').value = pieceData[0].journal;
+            
+            entries.length = 0;
+            pieceData.forEach(e => {
+                entries.push({
+                    compte: e.compte,
+                    compteAuxiliaire: e.compte_auxiliaire,
+                    montant: e.debit > 0 ? e.debit : e.credit,
+                    sens: e.debit > 0 ? 'debit' : 'credit'
+                });
+            });
+            updateEntriesTable();
+            document.getElementById('save-piece-btn').textContent = "Modifier la pièce";
+            document.getElementById('pieces-tab').click();
+        };
+
+        window.deleteEntry = async (pieceToDelete) => {
+            if (confirm(`Êtes-vous sûr de vouloir supprimer la pièce n° ${pieceToDelete} ?`)) {
+                const { error } = await supabase.from('grand_livre').delete().eq('societe_id', activeSocieteId).eq('piece', pieceToDelete);
+                if (error) {
+                    console.error("Erreur lors de la suppression:", error);
+                    showAlert("Erreur lors de la suppression de la pièce.");
+                    return;
+                }
+                showAlert("Pièce supprimée avec succès.");
+                loadEtatsFinanciers();
+            }
+        };
+
+        function populateCompteGeneralSelect() {
+            auxCompteGeneralSelect.innerHTML = '';
+            const comptesGeneraux = Array.from(comptesMap.values()).filter(c => c.numero_compte.startsWith('4') && c.numero_compte.length <= 4);
+            comptesGeneraux.forEach(compte => {
+                const option = document.createElement('option');
+                option.value = compte.numero_compte;
+                option.textContent = `${compte.numero_compte} - ${compte.intitule}`;
+                auxCompteGeneralSelect.appendChild(option);
+            });
+        }
+
+        fetchSocietes();
+        fetchComptes();
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeDOM);
+</script>
+
+</body>
+</html>
