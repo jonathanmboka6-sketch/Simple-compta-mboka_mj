@@ -7,6 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
     <style>
         body {
             font-family: sans-serif;
@@ -379,7 +380,7 @@
         
         <div id="balance-content" class="table-container" style="display: none;">
             <h3>Balance des Comptes</h3>
-            <table class="balance-table">
+            <table id="balance-table" class="balance-table">
                 <thead>
                     <tr>
                         <th>Compte</th>
@@ -457,6 +458,7 @@
             <button id="tva-sub-tab">TVA</button>
             <button id="devises-sub-tab">Devises</button>
             <button id="paiements-sub-tab">Modes de paiement</button>
+            <button id="cloture-sub-tab">Clôture</button>
         </div>
 
         <div id="journaux-content" class="sub-section active">
@@ -579,6 +581,13 @@
                 </table>
             </div>
         </div>
+        
+        <div id="cloture-content" class="sub-section" style="display: none;">
+            <h3>Clôture et Ouverture d'Exercice</h3>
+            <p>Cette opération est irréversible. Elle va clôturer l'exercice en cours et préparer le suivant.</p>
+            <p><strong>Année d'exercice en cours : <span id="current-year-display"></span></strong></p>
+            <button id="cloture-btn" class="btn" style="background-color: #f44336;">Clôturer l'exercice</button>
+        </div>
     </div>
 
     <div id="manuel-section" class="section">
@@ -695,6 +704,7 @@
 
     let activeSocieteId = null;
     let activeSocieteDenomination = null;
+    let anneeExerciceEnCours = new Date().getFullYear(); // Nouvelle variable pour l'année
     let grandLivreData = [];
     let comptesMap = new Map();
     let comptesAuxiliairesMap = new Map();
@@ -1098,6 +1108,114 @@
             tableBody.appendChild(row);
         });
     }
+    
+    // NOUVELLE FONCTION : Clôture d'exercice
+    async function cloturerExercice() {
+        if (!activeSocieteId) {
+            showAlert("Veuillez d'abord sélectionner une société.");
+            return;
+        }
+
+        if (!confirm(`Êtes-vous sûr de vouloir clôturer l'exercice ${anneeExerciceEnCours} ? Cette opération est irréversible et créera les écritures d'ouverture pour l'exercice suivant.`)) {
+            return;
+        }
+        
+        const { data: grandLivre, error } = await supabase
+            .from('grand_livre')
+            .select('*')
+            .eq('societe_id', activeSocieteId)
+            .eq('annee_exercice', anneeExerciceEnCours);
+
+        if (error) {
+            console.error("Erreur lors de la récupération des données:", error);
+            showAlert("Erreur lors de la récupération des données pour la clôture.");
+            return;
+        }
+
+        const soldes = grandLivre.reduce((acc, curr) => {
+            const compte = curr.compte;
+            if (!acc[compte]) acc[compte] = { debit: 0, credit: 0 };
+            acc[compte].debit += curr.debit;
+            acc[compte].credit += curr.credit;
+            return acc;
+        }, {});
+
+        let resultatNet = 0;
+        const ecrituresCloture = [];
+        const dateCloture = `${anneeExerciceEnCours}-12-31`;
+
+        for (const compte in soldes) {
+            if (compte.startsWith('6') || compte.startsWith('7')) {
+                const soldeFinal = soldes[compte].debit - soldes[compte].credit;
+                
+                if (soldeFinal !== 0) {
+                    ecrituresCloture.push({
+                        societe_id: activeSocieteId,
+                        date: dateCloture,
+                        journal: 'OD',
+                        piece: 'OD-CLOTURE',
+                        libelle: `Clôture de l'exercice ${anneeExerciceEnCours}`,
+                        compte: compte,
+                        debit: soldeFinal < 0 ? -soldeFinal : 0,
+                        credit: soldeFinal > 0 ? soldeFinal : 0,
+                        annee_exercice: anneeExerciceEnCours
+                    });
+                    resultatNet += soldeFinal;
+                }
+            }
+        }
+        
+        if (Math.abs(resultatNet) > 0.01) {
+            ecrituresCloture.push({
+                societe_id: activeSocieteId,
+                date: dateCloture,
+                journal: 'OD',
+                piece: 'OD-CLOTURE',
+                libelle: `Résultat net de l'exercice ${anneeExerciceEnCours}`,
+                compte: '130000',
+                debit: resultatNet < 0 ? -resultatNet : 0,
+                credit: resultatNet > 0 ? resultatNet : 0,
+                annee_exercice: anneeExerciceEnCours
+            });
+        }
+
+        const dateOuverture = `${anneeExerciceEnCours + 1}-01-01`;
+        const ecrituresOuverture = [];
+
+        for (const compte in soldes) {
+            if (compte.startsWith('1') || compte.startsWith('2') || compte.startsWith('3') || compte.startsWith('4') || compte.startsWith('5')) {
+                const soldeFinal = soldes[compte].debit - soldes[compte].credit;
+                if (soldeFinal !== 0) {
+                    ecrituresOuverture.push({
+                        societe_id: activeSocieteId,
+                        date: dateOuverture,
+                        journal: 'OD',
+                        piece: 'OD-OUVERTURE',
+                        libelle: `Solde d'ouverture de l'exercice ${anneeExerciceEnCours + 1}`,
+                        compte: compte,
+                        debit: soldeFinal > 0 ? soldeFinal : 0,
+                        credit: soldeFinal < 0 ? -soldeFinal : 0,
+                        annee_exercice: anneeExerciceEnCours + 1
+                    });
+                }
+            }
+        }
+        
+        const { error: insertError } = await supabase
+            .from('grand_livre')
+            .insert([...ecrituresCloture, ...ecrituresOuverture]);
+
+        if (insertError) {
+            console.error("Erreur lors de l'insertion des écritures:", insertError);
+            showAlert("Une erreur est survenue lors de l'enregistrement des écritures de clôture/ouverture.");
+            return;
+        }
+
+        anneeExerciceEnCours++;
+        
+        await loadEtatsFinanciers();
+        showAlert(`L'exercice ${anneeExerciceEnCours - 1} a été clôturé avec succès. Vous travaillez maintenant sur l'exercice ${anneeExerciceEnCours}.`);
+    }
 
     async function loadDataForCurrentSociete() {
         await loadEtatsFinanciers();
@@ -1106,6 +1224,7 @@
         await fetchTVA();
         await fetchDevises();
         await fetchPaiements();
+        document.getElementById('current-year-display').textContent = anneeExerciceEnCours;
     }
 
     async function loadEtatsFinanciers() {
@@ -1113,7 +1232,7 @@
             document.querySelectorAll('#etats-section .table-container p').forEach(p => p.textContent = "Veuillez d'abord sélectionner une société.");
             return;
         }
-        const { data, error } = await supabase.from('grand_livre').select('*').eq('societe_id', activeSocieteId).order('date', { ascending: false });
+        const { data, error } = await supabase.from('grand_livre').select('*').eq('societe_id', activeSocieteId).eq('annee_exercice', anneeExerciceEnCours).order('date', { ascending: false });
         if (error) {
             console.error('Erreur lors du chargement des données:', error);
             return;
@@ -1150,7 +1269,7 @@
             }
         });
         
-        bilanData.set('13', { solde: -resultatNet, intitule: 'Résultat Net' });
+        bilanData.set('130000', { solde: -resultatNet, intitule: 'Résultat Net' });
         
         tftData = calculateTFT(comptesBilan, resultatNet);
         
@@ -1174,7 +1293,7 @@
             } else if (compte.startsWith('2')) {
                 fluxInvestissement -= data.solde;
             } else if (compte.startsWith('1')) {
-                if (compte !== '13') {
+                if (compte !== '130000') {
                     fluxFinancement += data.solde;
                 }
             }
@@ -1367,47 +1486,108 @@
         });
     }
     
+    // NOUVELLE FONCTION EXPORT PDF UNIVERSELLE
     async function exportPDF() {
         const selectedEtat = document.getElementById('etats-select').value;
         const elementId = `${selectedEtat}-content`;
         const element = document.getElementById(elementId);
         const { jsPDF } = window.jspdf;
+
+        const filename = `${activeSocieteDenomination} - ${selectedEtat} - Exercice ${anneeExerciceEnCours}.pdf`;
         
-        const filename = `${activeSocieteDenomination} - ${selectedEtat}.pdf`;
-        
-        const actionsHeader = element.querySelector('th:last-child');
-        const actionCells = element.querySelectorAll('td:last-child');
-        
-        let actionsHidden = false;
-        if (actionsHeader && actionsHeader.textContent === 'Actions') {
-            actionsHeader.style.display = 'none';
-            actionCells.forEach(cell => cell.style.display = 'none');
-            actionsHidden = true;
+        // Identifier le tableau à exporter
+        const tableToExport = element.querySelector('table');
+        if (!tableToExport) {
+            showAlert('Aucun tableau à exporter n\'a été trouvé.');
+            return;
         }
 
-        const canvas = await html2canvas(element, { scale: 2 });
-        const imgData = canvas.toDataURL('image/png');
-        
         const doc = new jsPDF('p', 'mm', 'a4');
-        const imgWidth = 190;
-        const pageHeight = 295;
-        const imgHeight = canvas.height * imgWidth / canvas.width;
-        let heightLeft = imgHeight;
-        let position = 10;
+        const margin = 10;
+        let y = margin;
+
+        // Masquer temporairement la colonne "Actions" et récupérer les en-têtes
+        const headers = [];
+        const tableHeaders = tableToExport.querySelectorAll('th');
+        const lastHeader = tableHeaders[tableHeaders.length - 1];
+        let actionsHidden = false;
         
-        doc.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-        
-        while (heightLeft >= 0) {
-            position = heightLeft - imgHeight + 10;
-            doc.addPage();
-            doc.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
+        if (lastHeader && lastHeader.textContent === 'Actions') {
+            lastHeader.style.display = 'none';
+            actionsHidden = true;
         }
         
+        tableHeaders.forEach(th => {
+            if (th.style.display !== 'none') {
+                headers.push(th.textContent);
+            }
+        });
+
+        // Préparer les données du tableau
+        const rowsData = [];
+        const tableRows = tableToExport.querySelectorAll('tbody tr');
+        tableRows.forEach(row => {
+            const rowData = [];
+            const cells = row.querySelectorAll('td');
+            cells.forEach(cell => {
+                if (cell.closest('div.action-buttons')) {
+                    return; // Ignorer les boutons
+                }
+                rowData.push(cell.textContent.trim());
+            });
+            
+            // Si la dernière colonne était la colonne "Actions", on l'enlève de rowData
+            if (actionsHidden && rowData.length > 0) {
+                rowData.pop();
+            }
+
+            if (rowData.length > 0) {
+                rowsData.push(rowData);
+            }
+        });
+        
+        // Ajouter le titre et les en-têtes de la page
+        const title = `${selectedEtat} - ${activeSocieteDenomination}`;
+        doc.setFontSize(16);
+        doc.text(title, 105, y, { align: 'center' });
+        y += 10;
+        doc.setFontSize(12);
+        doc.text(`Exercice : ${anneeExerciceEnCours}`, 105, y, { align: 'center' });
+        y += 15;
+
+        // Définir les options d'autoTable
+        const columnStyles = {};
+        
+        // Si c'est la balance, ajuster les colonnes à aligner
+        if (selectedEtat === 'balance') {
+            columnStyles[1] = { halign: 'right' };
+            columnStyles[2] = { halign: 'right' };
+            columnStyles[3] = { halign: 'right' };
+            columnStyles[4] = { halign: 'right' };
+        } else if (selectedEtat === 'grand-livre') {
+            columnStyles[4] = { halign: 'right' };
+            columnStyles[5] = { halign: 'right' };
+        }
+        // Ajouter d'autres cas si d'autres tableaux ont besoin d'un alignement spécifique
+
+        // Générer le tableau avec jsPDF autoTable
+        doc.autoTable({
+            startY: y,
+            head: [headers],
+            body: rowsData,
+            theme: 'striped',
+            styles: { fontSize: 10, cellPadding: 2 },
+            headStyles: { fillColor: [242, 242, 242], textColor: [0, 0, 0], fontStyle: 'bold' },
+            columnStyles: columnStyles,
+            didDrawPage: function(data) {
+                doc.text('Page ' + doc.pageNumber, doc.internal.pageSize.width - margin, doc.internal.pageSize.height - margin);
+            }
+        });
+
+        // Rétablir l'affichage de la colonne "Actions"
         if (actionsHidden) {
-            actionsHeader.style.display = 'table-cell';
-            actionCells.forEach(cell => cell.style.display = 'table-cell');
+            lastHeader.style.display = 'table-cell';
+            tableToExport.querySelectorAll('td:last-child').forEach(cell => cell.style.display = 'table-cell');
         }
 
         doc.save(filename);
@@ -1482,6 +1662,9 @@
         const newPaiementCodeInput = document.getElementById('new-paiement-code');
         const newPaiementLibelleInput = document.getElementById('new-paiement-libelle');
         const saveNewPaiementBtn = document.getElementById('save-new-paiement-btn');
+        
+        const clotureBtn = document.getElementById('cloture-btn');
+
 
         tabs.forEach(tab => {
             tab.addEventListener('click', async () => {
@@ -1520,6 +1703,11 @@
         document.getElementById('paiements-sub-tab').addEventListener('click', async () => {
             showSubSection('parametres-section', 'paiements-content');
             await fetchPaiements();
+        });
+        
+        document.getElementById('cloture-sub-tab').addEventListener('click', () => {
+            showSubSection('parametres-section', 'cloture-content');
+            document.getElementById('current-year-display').textContent = anneeExerciceEnCours;
         });
 
         etatsSelect.addEventListener('change', () => {
@@ -1638,7 +1826,8 @@
                 credit: s.credit,
                 piece: 'OD-SOLDE',
                 journal: 'opérations diverses',
-                societe_id: activeSocieteId
+                societe_id: activeSocieteId,
+                annee_exercice: anneeExerciceEnCours
             }));
             const { error } = await supabase.from('grand_livre').insert(inserts);
             if (error) {
@@ -1696,7 +1885,8 @@
                     .select('id', { count: 'exact', head: true })
                     .eq('societe_id', activeSocieteId)
                     .eq('journal', journal)
-                    .eq('piece', piece);
+                    .eq('piece', piece)
+                    .eq('annee_exercice', anneeExerciceEnCours);
                 
                 if (countError) {
                     console.error("Erreur lors de la vérification de la pièce:", countError);
@@ -1730,11 +1920,12 @@
                 credit: e.sens === 'credit' ? e.montant : 0,
                 piece: piece,
                 journal: journal,
-                societe_id: activeSocieteId
+                societe_id: activeSocieteId,
+                annee_exercice: anneeExerciceEnCours
             }));
 
             if (editingPieceId) {
-                const { error: deleteError } = await supabase.from('grand_livre').delete().eq('societe_id', activeSocieteId).eq('piece', editingPieceId);
+                const { error: deleteError } = await supabase.from('grand_livre').delete().eq('societe_id', activeSocieteId).eq('piece', editingPieceId).eq('annee_exercice', anneeExerciceEnCours);
                 if (deleteError) {
                     console.error("Erreur lors de la suppression de l'ancienne pièce:", deleteError);
                     showAlert("Erreur lors de la mise à jour de la pièce.");
@@ -1912,6 +2103,8 @@
             fetchPaiements();
         });
 
+        clotureBtn.addEventListener('click', cloturerExercice);
+
         window.deleteAuxiliaire = async (id) => {
             if (confirm("Êtes-vous sûr de vouloir supprimer ce compte auxiliaire ?")) {
                 const { error } = await supabase.from('comptes_auxiliaires').delete().eq('id', id);
@@ -2005,7 +2198,7 @@
 
         window.deleteEntry = async (pieceToDelete) => {
             if (confirm(`Êtes-vous sûr de vouloir supprimer la pièce n° ${pieceToDelete} ?`)) {
-                const { error } = await supabase.from('grand_livre').delete().eq('societe_id', activeSocieteId).eq('piece', pieceToDelete);
+                const { error } = await supabase.from('grand_livre').delete().eq('societe_id', activeSocieteId).eq('piece', pieceToDelete).eq('annee_exercice', anneeExerciceEnCours);
                 if (error) {
                     console.error("Erreur lors de la suppression:", error);
                     showAlert("Erreur lors de la suppression de la pièce.");
